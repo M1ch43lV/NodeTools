@@ -60,8 +60,12 @@ mem_usage=$(free | awk '/Mem/ {printf "%.2f\n", $3/$2 * 100}')
 check_resource "$mem_usage" "$mem_threshold" "Memory is $mem_usage% saturated!"
 
 # Swap Memory Usage
-swap_usage=$(free | awk '/Swap/ {printf "%.2f\n", $3/$2 * 100}')
-check_resource "$swap_usage" "$swap_threshold" "Swap Memory is $swap_usage% saturated!"
+swap_info=$(free | awk '/Swap/')
+swap_total=$(echo "$swap_info" | awk '{print $2}')
+if [ "$swap_total" -gt 0 ]; then
+    swap_usage=$(echo "$swap_info" | awk '{printf "%.2f\n", $3/$2 * 100}')
+    check_resource "$swap_usage" "$swap_threshold" "Swap Memory is $swap_usage% saturated!"
+fi
 
 # Disk Usage
 disk_usage=$(df -h --output=pcent / | awk 'NR==2 {sub(/%/, ""); print}')
@@ -74,11 +78,11 @@ cpu_usage=$(awk "BEGIN {printf \"%.2f\", 100 / $cpu_count * $load_average}")
 check_resource "$cpu_usage" "$cpu_threshold" "Load Average (15min) at $cpu_usage% ($load_average)!"
 
 # Blockheight compare to peers
-peer_heights=("$($_CMD_BTCCLI getpeerinfo | jq -r '.[] | .synced_blocks' | sort -rn)")
+highest_peer_height=("$($_CMD_BTCCLI getpeerinfo | jq -r '.[] | .synced_blocks' | sort -rn | head -n 1)")
 local_height=$($_CMD_BTCCLI getblockcount)
-echo "majority peers blockheight: ${peer_heights[0]}"
-echo "local blockheight: $local_height"
+echo "Highest peer blockheight: ${highest_peer_height}"
+echo "Local blockheight: $local_height"
 
-if (( peer_heights[0] - local_height >= blkdiff_limit )); then
-    pushover "WARNING: local blockheight ($local_height) differs from peers (${peer_heights[0]})!"
+if (( highest_peer_height - local_height >= blkdiff_limit )); then
+    pushover "WARNING: local blockheight ($local_height) differs from peers ($highest_peer_height)!"
 fi
